@@ -69,14 +69,19 @@ func handleErr(err error) {
 // getNextServerAddr returns the address of the next available server to send a
 // request to, using a simple round-robin algorithm
 func (lb *LoadBalancer) getNextAvailableServer() Server {
-	server := lb.servers[lb.roundRobinCount%len(lb.servers)]
-	for !server.IsAlive() {
-		lb.roundRobinCount++
-		server = lb.servers[lb.roundRobinCount%len(lb.servers)]
-	}
-	lb.roundRobinCount++
+	startIndex := lb.roundRobinCount % len(lb.servers)
 
-	return server
+	for i := startIndex; i < startIndex+len(lb.servers); i++ {
+		server := lb.servers[i%len(lb.servers)]
+		if server.IsAlive() {
+			lb.roundRobinCount = i % len(lb.servers)
+			return server
+		}
+	}
+
+	// fallback to the first server if all servers are dead
+	lb.roundRobinCount = 0
+	return lb.servers[0]
 }
 
 func (lb *LoadBalancer) serveProxy(rw http.ResponseWriter, req *http.Request) {
